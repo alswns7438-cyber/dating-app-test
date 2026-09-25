@@ -1,0 +1,192 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Supabase 연결 테스트</title>
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+<style>
+  :root{
+    --bg:#F4F2EF; --panel:#FFFFFF; --ink:#17171B; --ink-soft:#6E6E76;
+    --accent:#4B3BD4; --accent-soft:#E7E3FB; --ok:#1FA463; --err:#D64545;
+    box-sizing:border-box;
+    padding-top:env(safe-area-inset-top,0px);
+    padding-bottom:env(safe-area-inset-bottom,0px);
+  }
+  @media (prefers-color-scheme: dark){
+    :root:not([data-theme="light"]){
+      --bg:#121214; --panel:#1B1B1F; --ink:#F1EFFB; --ink-soft:#A5A3AE; --accent-soft:#2A2440;
+    }
+  }
+  :root[data-theme="dark"]{
+    --bg:#121214; --panel:#1B1B1F; --ink:#F1EFFB; --ink-soft:#A5A3AE; --accent-soft:#2A2440;
+  }
+  html{ height:100%; scroll-padding-top:env(safe-area-inset-top,0px); }
+  *{ box-sizing:border-box; }
+  body{
+    margin:0; min-height:100%; background:var(--bg); color:var(--ink);
+    font-family:'Noto Sans KR',-apple-system,BlinkMacSystemFont,sans-serif;
+    padding:24px 16px 40px; display:flex; justify-content:center;
+  }
+  .stage{ width:100%; max-width:420px; }
+  h1{ font-size:18px; margin:0 0 4px; }
+  .sub{ color:var(--ink-soft); font-size:13px; margin:0 0 20px; }
+  .card{ background:var(--panel); border-radius:18px; padding:18px; margin-bottom:16px; box-shadow:0 8px 24px rgba(0,0,0,.08); }
+  .card h2{ font-size:14px; margin:0 0 12px; }
+  label{ font-size:12.5px; color:var(--ink-soft); display:block; margin:10px 0 4px; }
+  input{
+    width:100%; padding:10px 12px; border-radius:10px; border:1px solid rgba(0,0,0,.12);
+    background:var(--bg); color:var(--ink); font-size:14px; outline:none;
+  }
+  input:focus{ border-color:var(--accent); }
+  button{
+    margin-top:14px; width:100%; padding:12px; border:none; border-radius:10px;
+    background:var(--accent); color:#fff; font-size:14px; font-weight:700; cursor:pointer;
+  }
+  button:disabled{ opacity:.5; }
+  .status{
+    margin-top:12px; font-size:13px; padding:10px 12px; border-radius:10px; display:none;
+    white-space:pre-line; line-height:1.5;
+  }
+  .status.ok{ display:block; background:rgba(31,164,99,.12); color:var(--ok); }
+  .status.err{ display:block; background:rgba(214,69,69,.12); color:var(--err); }
+  .row{
+    display:flex; justify-content:space-between; gap:8px; padding:10px 0;
+    border-bottom:1px solid rgba(0,0,0,.06); font-size:13.5px;
+  }
+  .row:last-child{ border-bottom:none; }
+  .row .n{ font-weight:700; }
+  .row .b{ color:var(--ink-soft); font-size:12px; }
+  .empty{ color:var(--ink-soft); font-size:13px; text-align:center; padding:12px 0; }
+  .refresh{ background:transparent; color:var(--accent); border:1px solid var(--accent); margin-top:10px; }
+</style>
+</head>
+<body>
+<div class="stage">
+  <h1>Supabase 연결 테스트</h1>
+  <p class="sub">프로필을 저장하고 실제로 DB에서 불러와지는지 확인해요</p>
+
+  <div class="card">
+    <h2>테스트 프로필 저장</h2>
+    <label>이름</label>
+    <input id="name" placeholder="예: 소연" />
+    <label>나이</label>
+    <input id="age" type="number" placeholder="예: 28" />
+    <label>한 줄 소개</label>
+    <input id="bio" placeholder="예: 주말엔 등산 좋아해요" />
+    <button id="saveBtn">저장 테스트</button>
+    <div class="status" id="saveStatus"></div>
+  </div>
+
+  <div class="card">
+    <h2>저장된 프로필 목록 (실시간 DB 조회)</h2>
+    <div id="list"></div>
+    <button class="refresh" id="refreshBtn">새로고침</button>
+    <div class="status" id="listStatus"></div>
+  </div>
+</div>
+
+<script>
+  const SUPABASE_URL = "https://tsrfquzogwcdjdsqqasl.supabase.co";
+  const SUPABASE_KEY = "sb_publishable_un0C00HYmC7vW4dSsFttcg_a5lLKQ4R";
+
+  let client = null;
+  try {
+    client = window.supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
+  } catch (e) {
+    console.error(e);
+  }
+
+  const saveBtn = document.getElementById("saveBtn");
+  const saveStatus = document.getElementById("saveStatus");
+  const listEl = document.getElementById("list");
+  const listStatus = document.getElementById("listStatus");
+  const refreshBtn = document.getElementById("refreshBtn");
+
+  function showStatus(el, ok, msg){
+    el.className = "status " + (ok ? "ok" : "err");
+    el.textContent = msg;
+  }
+
+  async function saveProfile(){
+    const name = document.getElementById("name").value.trim();
+    const age = document.getElementById("age").value;
+    const bio = document.getElementById("bio").value.trim();
+
+    if (!name){
+      showStatus(saveStatus, false, "이름을 입력해주세요.");
+      return;
+    }
+    if (!client){
+      showStatus(saveStatus, false, "Supabase 클라이언트 초기화 실패. URL/키를 확인해주세요.");
+      return;
+    }
+
+    saveBtn.disabled = true;
+    saveBtn.textContent = "저장 중...";
+
+    const { data, error } = await client
+      .from("profiles")
+      .insert({ name: name, age: age ? parseInt(age) : null, bio: bio || null })
+      .select();
+
+    saveBtn.disabled = false;
+    saveBtn.textContent = "저장 테스트";
+
+    if (error){
+      showStatus(saveStatus, false,
+        "저장 실패 ❌\n" + error.message +
+        "\n\n(보통 RLS 정책이 막고 있어서예요. Table Editor에서 profiles 테이블의 RLS를 껐는지 확인해보세요.)");
+      return;
+    }
+
+    showStatus(saveStatus, true, "저장 성공! ✅ 실제 데이터베이스에 기록됐어요.");
+    document.getElementById("name").value = "";
+    document.getElementById("age").value = "";
+    document.getElementById("bio").value = "";
+    loadProfiles();
+  }
+
+  async function loadProfiles(){
+    listStatus.className = "status";
+    listStatus.textContent = "";
+
+    if (!client){
+      showStatus(listStatus, false, "Supabase 클라이언트 초기화 실패.");
+      return;
+    }
+
+    const { data, error } = await client
+      .from("profiles")
+      .select("name, age, bio, created_at")
+      .order("created_at", { ascending: false })
+      .limit(20);
+
+    if (error){
+      showStatus(listStatus, false, "조회 실패 ❌\n" + error.message);
+      listEl.innerHTML = "";
+      return;
+    }
+
+    if (!data || data.length === 0){
+      listEl.innerHTML = '<div class="empty">아직 저장된 프로필이 없어요.</div>';
+      return;
+    }
+
+    listEl.innerHTML = data.map(p => `
+      <div class="row">
+        <div>
+          <div class="n">${p.name} ${p.age ? "(" + p.age + ")" : ""}</div>
+          ${p.bio ? '<div class="b">' + p.bio + '</div>' : ""}
+        </div>
+      </div>
+    `).join("");
+  }
+
+  saveBtn.addEventListener("click", saveProfile);
+  refreshBtn.addEventListener("click", loadProfiles);
+
+  loadProfiles();
+</script>
+</body>
+</html>
