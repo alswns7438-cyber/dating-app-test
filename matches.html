@@ -1,0 +1,124 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>썸틱 · 매칭 목록</title>
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+<style>
+  :root{
+    --bg:#241528; --card:#FFF8F0; --ink:#2A1E2E; --ink-soft:#8A7A8F;
+    --accent:#FF6B5B; --accent2:#8B5CF6;
+    box-sizing:border-box;
+    padding-top:env(safe-area-inset-top,0px);
+    padding-bottom:env(safe-area-inset-bottom,0px);
+  }
+  @media (prefers-color-scheme: dark){
+    :root:not([data-theme="light"]){ --bg:#17101A; --card:#2C222F; --ink:#F3ECF6; --ink-soft:#B0A3B5; }
+  }
+  :root[data-theme="dark"]{ --bg:#17101A; --card:#2C222F; --ink:#F3ECF6; --ink-soft:#B0A3B5; }
+  html{ height:100%; scroll-padding-top:env(safe-area-inset-top,0px); }
+  *{ box-sizing:border-box; }
+  body{
+    margin:0; min-height:100%; background:var(--bg); color:var(--ink);
+    font-family:'Noto Sans KR',-apple-system,BlinkMacSystemFont,sans-serif;
+    padding:24px 16px 40px; display:flex; justify-content:center;
+  }
+  .stage{ width:100%; max-width:420px; }
+  .brand{ color:#F3ECF6; font-weight:800; font-size:20px; margin:0 4px 4px; }
+  .sub{ color:var(--ink-soft); font-size:13px; margin:0 4px 20px; }
+  .row{
+    display:flex; align-items:center; gap:14px;
+    background:var(--card); border-radius:18px; padding:14px 16px; margin-bottom:10px;
+    box-shadow:0 8px 24px rgba(0,0,0,.18);
+  }
+  .av{
+    width:52px; height:52px; border-radius:50%; flex-shrink:0;
+    display:flex; align-items:center; justify-content:center;
+    font-weight:800; font-size:20px; color:#fff;
+  }
+  .info .name{ font-weight:800; font-size:15.5px; }
+  .info .tagline{ color:var(--ink-soft); font-size:12.5px; margin-top:2px; }
+  .empty{
+    text-align:center; color:var(--ink-soft); font-size:13.5px;
+    padding:60px 20px; line-height:1.6;
+  }
+  .back{
+    display:inline-block; color:var(--accent2); font-size:13px;
+    text-decoration:none; margin-bottom:16px;
+  }
+</style>
+</head>
+<body>
+<div class="stage">
+  <a class="back" href="swipe.html">← 스와이프로 돌아가기</a>
+  <div class="brand">매칭된 사람들</div>
+  <div class="sub">서로 좋아요를 누른 상대예요</div>
+  <div id="list">
+    <div class="empty">불러오는 중...</div>
+  </div>
+</div>
+
+<script>
+  const SUPABASE_URL = "https://tsrfquzogwcdjdsqqasl.supabase.co";
+  const SUPABASE_KEY = "sb_publishable_un0C00HYmC7vW4dSsFttcg_a5ILKQ4R";
+  let client = null;
+  try { client = window.supabase.createClient(SUPABASE_URL, SUPABASE_KEY); } catch(e){ console.error(e); }
+
+  let myId = localStorage.getItem("someTik_myId");
+  if (!myId){
+    myId = crypto.randomUUID();
+    localStorage.setItem("someTik_myId", myId);
+  }
+
+  const profileById = {
+    "11111111-1111-1111-1111-111111111111": { name:"소연", tagline:"주말엔 등산, 평일엔 넷플릭스", initial:"소", color1:"#FF8A65", color2:"#FF6B5B" },
+    "22222222-2222-2222-2222-222222222222": { name:"민재", tagline:"맛집 탐방이 취미예요", initial:"민", color1:"#8B5CF6", color2:"#5B3FE0" },
+    "33333333-3333-3333-3333-333333333333": { name:"하은", tagline:"강아지 두 마리와 삽니다", initial:"하", color1:"#3DD68C", color2:"#1FB878" },
+    "44444444-4444-4444-4444-444444444444": { name:"준호", tagline:"기타 치고 노래 부르는 걸 좋아해요", initial:"준", color1:"#4C6FFF", color2:"#2F4BDC" },
+    "55555555-5555-5555-5555-555555555555": { name:"지원", tagline:"요가 강사, 아침형 인간", initial:"지", color1:"#FF6B9D", color2:"#E0447A" }
+  };
+
+  const listEl = document.getElementById("list");
+
+  async function loadMatches(){
+    if (!client){
+      listEl.innerHTML = '<div class="empty">연결 오류</div>';
+      return;
+    }
+    const { data, error } = await client
+      .from("matches")
+      .select("user_a, user_b, matched_at")
+      .or(`user_a.eq.${myId},user_b.eq.${myId}`)
+      .order("matched_at", { ascending: false });
+
+    if (error){
+      listEl.innerHTML = '<div class="empty">불러오기 실패: ' + error.message + '</div>';
+      return;
+    }
+
+    if (!data || data.length === 0){
+      listEl.innerHTML = '<div class="empty">아직 매칭된 상대가 없어요.<br>스와이프에서 좋아요를 눌러보세요!</div>';
+      return;
+    }
+
+    listEl.innerHTML = data.map(m => {
+      const otherId = m.user_a === myId ? m.user_b : m.user_a;
+      const p = profileById[otherId];
+      if (!p) return "";
+      return `
+        <div class="row">
+          <div class="av" style="background:linear-gradient(135deg, ${p.color1}, ${p.color2})">${p.initial}</div>
+          <div class="info">
+            <div class="name">${p.name}</div>
+            <div class="tagline">${p.tagline}</div>
+          </div>
+        </div>
+      `;
+    }).join("");
+  }
+
+  loadMatches();
+</script>
+</body>
+</html>
