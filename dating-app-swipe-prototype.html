@@ -1,0 +1,343 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>썸틱 · 매칭 카드 프로토타입</title>
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+<style>
+  :root{
+    --bg:#241528;
+    --card:#FFF8F0;
+    --ink:#2A1E2E;
+    --ink-soft:#8A7A8F;
+    --accent:#FF6B5B;
+    --accent2:#8B5CF6;
+    --like:#3DD68C;
+    --pass:#FF6B5B;
+    --tag-bg:#F1E8FB;
+    --tag-ink:#6C4BAE;
+    box-sizing:border-box;
+    padding-top:env(safe-area-inset-top,0px);
+    padding-bottom:env(safe-area-inset-bottom,0px);
+  }
+  @media (prefers-color-scheme: dark){
+    :root:not([data-theme="light"]){
+      --bg:#17101A;
+      --card:#2C222F;
+      --ink:#F3ECF6;
+      --ink-soft:#B0A3B5;
+      --tag-bg:#3A2C44;
+      --tag-ink:#D6C4F0;
+    }
+  }
+  :root[data-theme="dark"]{
+    --bg:#17101A;
+    --card:#2C222F;
+    --ink:#F3ECF6;
+    --ink-soft:#B0A3B5;
+    --tag-bg:#3A2C44;
+    --tag-ink:#D6C4F0;
+  }
+  html{ scroll-padding-top:env(safe-area-inset-top,0px); height:100%; }
+  *{ box-sizing:border-box; }
+  body{
+    margin:0; height:100%;
+    background:var(--bg);
+    color:var(--ink);
+    font-family:'Noto Sans KR',-apple-system,BlinkMacSystemFont,sans-serif;
+    display:flex; align-items:center; justify-content:center;
+    padding:24px 16px;
+  }
+  .stage{ width:100%; max-width:380px; }
+  .topbar{
+    display:flex; align-items:center; justify-content:space-between;
+    margin:0 4px 16px;
+  }
+  .brand{ color:#F3ECF6; font-weight:800; font-size:17px; letter-spacing:-0.01em; }
+  .counter{ color:var(--ink-soft); font-size:12.5px; }
+  .deck{
+    position:relative;
+    height:520px;
+  }
+  .profile-card{
+    position:absolute; inset:0;
+    background:var(--card);
+    border-radius:26px;
+    overflow:hidden;
+    box-shadow:0 24px 60px rgba(0,0,0,.4);
+    display:flex; flex-direction:column;
+    transition:transform .35s ease, opacity .35s ease;
+  }
+  .photo{
+    height:58%;
+    display:flex; align-items:center; justify-content:center;
+    font-size:76px; font-weight:800; color:#fff;
+    position:relative;
+  }
+  .photo .badge{
+    position:absolute; top:14px; left:14px;
+    background:rgba(0,0,0,.35);
+    color:#fff; font-size:11.5px;
+    padding:4px 10px; border-radius:999px;
+  }
+  .info{ padding:16px 18px 18px; flex:1; display:flex; flex-direction:column; gap:8px; }
+  .name-row{ display:flex; align-items:baseline; gap:8px; }
+  .name-row .name{ font-size:20px; font-weight:800; }
+  .name-row .age{ font-size:16px; color:var(--ink-soft); }
+  .tagline{ font-size:13.5px; color:var(--ink-soft); line-height:1.5; }
+  .tags{ display:flex; flex-wrap:wrap; gap:6px; margin-top:4px; }
+  .tag{
+    background:var(--tag-bg); color:var(--tag-ink);
+    font-size:11.5px; padding:5px 10px; border-radius:999px;
+  }
+  .stamp{
+    position:absolute; top:24px; font-size:15px; font-weight:800;
+    padding:6px 14px; border-radius:8px; border:3px solid;
+    transform:rotate(-12deg); opacity:0; transition:opacity .2s;
+    letter-spacing:0.04em;
+  }
+  .stamp.like{ right:20px; color:var(--like); border-color:var(--like); }
+  .stamp.pass{ left:20px; color:var(--pass); border-color:var(--pass); transform:rotate(12deg); }
+  .controls{
+    display:flex; justify-content:center; gap:18px;
+    margin-top:20px;
+  }
+  .ctrl-btn{
+    width:56px; height:56px; border-radius:50%;
+    border:none; cursor:pointer;
+    display:flex; align-items:center; justify-content:center;
+    font-size:22px;
+    box-shadow:0 8px 20px rgba(0,0,0,.3);
+  }
+  .ctrl-btn.pass{ background:var(--card); color:var(--pass); }
+  .ctrl-btn.like{ background:var(--accent); color:#fff; }
+  .ctrl-btn.undo{ width:44px; height:44px; background:var(--card); color:var(--ink-soft); font-size:16px; align-self:center; }
+  .empty{
+    position:absolute; inset:0;
+    display:flex; flex-direction:column; align-items:center; justify-content:center;
+    color:var(--ink-soft); text-align:center; gap:8px; font-size:14px;
+    background:var(--card); border-radius:26px;
+  }
+  .foot{ text-align:center; color:var(--ink-soft); font-size:11.5px; margin-top:16px; opacity:.7; }
+  .toast{
+    position:fixed; left:50%; bottom:24px; transform:translateX(-50%);
+    background:rgba(0,0,0,.8); color:#fff; font-size:12.5px;
+    padding:9px 16px; border-radius:999px; opacity:0; pointer-events:none;
+    transition:opacity .25s; z-index:50; white-space:nowrap;
+  }
+  .toast.show{ opacity:1; }
+  .match-overlay{
+    position:fixed; inset:0; background:rgba(20,10,25,.88);
+    display:flex; align-items:center; justify-content:center;
+    z-index:100; opacity:0; pointer-events:none; transition:opacity .3s;
+  }
+  .match-overlay.show{ opacity:1; pointer-events:auto; }
+  .match-card{
+    text-align:center; color:#fff; padding:32px;
+  }
+  .match-card h2{
+    font-size:30px; margin:0 0 6px; color:var(--accent2);
+    text-shadow:0 2px 20px rgba(139,92,246,.6);
+  }
+  .match-card p{ color:#D6C4F0; font-size:14px; margin:0 0 24px; }
+  .match-avatars{ display:flex; justify-content:center; gap:-10px; margin-bottom:24px; }
+  .match-avatars .av{
+    width:64px; height:64px; border-radius:50%; border:3px solid #fff;
+    display:flex; align-items:center; justify-content:center;
+    font-size:24px; font-weight:800; color:#fff; margin:0 -10px;
+  }
+  .match-close{
+    background:var(--accent2); color:#fff; border:none; padding:12px 28px;
+    border-radius:999px; font-size:14px; font-weight:700;
+  }
+</style>
+</head>
+<body>
+<div class="stage">
+  <div class="topbar">
+    <div class="brand">썸틱</div>
+    <div class="counter" id="counter">1 / 5</div>
+  </div>
+  <div class="deck" id="deck"></div>
+  <div class="controls">
+    <button class="ctrl-btn undo" id="undoBtn" title="되돌리기">↺</button>
+    <button class="ctrl-btn pass" id="passBtn">✕</button>
+    <button class="ctrl-btn like" id="likeBtn">♥</button>
+  </div>
+  <p class="foot">샘플 프로토타입 · 실제 Supabase 데이터베이스와 연결됨</p>
+</div>
+
+<div class="toast" id="toast"></div>
+
+<div class="match-overlay" id="matchOverlay">
+  <div class="match-card">
+    <h2>It's a Match! 🎉</h2>
+    <p id="matchName">서로 좋아요를 눌렀어요</p>
+    <div class="match-avatars">
+      <div class="av" id="matchAvMe" style="background:#4C6FFF;">나</div>
+      <div class="av" id="matchAvThem" style="background:#FF6B5B;">?</div>
+    </div>
+    <button class="match-close" id="matchCloseBtn">계속 둘러보기</button>
+  </div>
+</div>
+
+<script>
+  // ── Supabase 연결 ──
+  const SUPABASE_URL = "https://tsrfquzogwcdjdsqqasl.supabase.co";
+  const SUPABASE_KEY = "sb_publishable_un0C00HYmC7vW4dSsFttcg_a5ILKQ4R";
+  let client = null;
+  try { client = window.supabase.createClient(SUPABASE_URL, SUPABASE_KEY); } catch(e){ console.error(e); }
+
+  // 이 기기의 "내 아이디" (로그인 기능 붙이기 전까지 임시로 로컬에 저장)
+  let myId = localStorage.getItem("someTik_myId");
+  if (!myId){
+    myId = crypto.randomUUID();
+    localStorage.setItem("someTik_myId", myId);
+  }
+
+  const profiles = [
+    { id:"11111111-1111-1111-1111-111111111111", name:"소연", age:28, tagline:"주말엔 등산, 평일엔 넷플릭스", tags:["#등산","#영화","#커피"], initial:"소", color1:"#FF8A65", color2:"#FF6B5B", badge:"부산 · 3km" },
+    { id:"22222222-2222-2222-2222-222222222222", name:"민재", age:31, tagline:"맛집 탐방이 취미예요", tags:["#맛집","#여행","#러닝"], initial:"민", color1:"#8B5CF6", color2:"#5B3FE0", badge:"부산 · 5km" },
+    { id:"33333333-3333-3333-3333-333333333333", name:"하은", age:26, tagline:"강아지 두 마리와 삽니다", tags:["#강아지","#카페","#독서"], initial:"하", color1:"#3DD68C", color2:"#1FB878", badge:"부산 · 1km" },
+    { id:"44444444-4444-4444-4444-444444444444", name:"준호", age:29, tagline:"기타 치고 노래 부르는 걸 좋아해요", tags:["#음악","#공연","#와인"], initial:"준", color1:"#4C6FFF", color2:"#2F4BDC", badge:"부산 · 7km" },
+    { id:"55555555-5555-5555-5555-555555555555", name:"지원", age:27, tagline:"요가 강사, 아침형 인간", tags:["#요가","#요리","#바다"], initial:"지", color1:"#FF6B9D", color2:"#E0447A", badge:"부산 · 2km" }
+  ];
+  // 데모용: 소연, 하은은 미리 나를 좋아요 눌러둔 상태로 시작 (매칭 테스트용)
+  const preSeeded = [profiles[0].id, profiles[2].id];
+
+  let idx = 0;
+  const history = [];
+  const deckEl = document.getElementById("deck");
+  const counterEl = document.getElementById("counter");
+  const toastEl = document.getElementById("toast");
+  const matchOverlay = document.getElementById("matchOverlay");
+
+  function showToast(msg){
+    toastEl.textContent = msg;
+    toastEl.classList.add("show");
+    setTimeout(() => toastEl.classList.remove("show"), 1800);
+  }
+
+  async function seedIncomingLikes(){
+    if (!client) return;
+    for (const pid of preSeeded){
+      const { data } = await client.from("likes")
+        .select("id").eq("from_user", pid).eq("to_user", myId).limit(1);
+      if (!data || data.length === 0){
+        await client.from("likes").insert({ from_user: pid, to_user: myId });
+      }
+    }
+  }
+
+  function render(){
+    deckEl.innerHTML = "";
+    if (idx >= profiles.length){
+      const empty = document.createElement("div");
+      empty.className = "empty";
+      empty.innerHTML = "<div style='font-size:34px'>✨</div><div>오늘의 추천을 모두 확인했어요</div>";
+      deckEl.appendChild(empty);
+      counterEl.textContent = profiles.length + " / " + profiles.length;
+      return;
+    }
+    counterEl.textContent = (idx+1) + " / " + profiles.length;
+    const showCount = Math.min(2, profiles.length - idx);
+    for (let i = showCount - 1; i >= 0; i--){
+      const p = profiles[idx + i];
+      const card = document.createElement("div");
+      card.className = "profile-card";
+      card.style.zIndex = 10 - i;
+      card.style.transform = i === 0 ? "translateY(0) scale(1)" : "translateY(10px) scale(0.96)";
+      card.innerHTML = `
+        <div class="photo" style="background:linear-gradient(135deg, ${p.color1}, ${p.color2})">
+          <span class="badge">${p.badge}</span>
+          ${p.initial}
+          <div class="stamp like" data-stamp="like">LIKE</div>
+          <div class="stamp pass" data-stamp="pass">PASS</div>
+        </div>
+        <div class="info">
+          <div class="name-row"><span class="name">${p.name}</span><span class="age">${p.age}</span></div>
+          <div class="tagline">${p.tagline}</div>
+          <div class="tags">${p.tags.map(t => `<span class="tag">${t}</span>`).join("")}</div>
+        </div>
+      `;
+      deckEl.appendChild(card);
+    }
+  }
+
+  async function saveLike(targetProfile){
+    if (!client){
+      showToast("연결 오류: 저장 안 됨");
+      return;
+    }
+    const { error } = await client.from("likes").insert({
+      from_user: myId,
+      to_user: targetProfile.id
+    });
+    if (error){
+      showToast("저장 실패: " + error.message);
+      return;
+    }
+    // 상대방이 이미 나를 좋아요 눌렀는지 확인 → 매칭
+    const { data: mutual } = await client.from("likes")
+      .select("id")
+      .eq("from_user", targetProfile.id)
+      .eq("to_user", myId)
+      .limit(1);
+
+    if (mutual && mutual.length > 0){
+      await client.from("matches").insert({
+        user_a: myId,
+        user_b: targetProfile.id
+      });
+      openMatch(targetProfile);
+    } else {
+      showToast(targetProfile.name + "님에게 좋아요를 보냈어요");
+    }
+  }
+
+  function openMatch(profile){
+    document.getElementById("matchName").textContent = profile.name + "님과 매칭됐어요!";
+    const themAv = document.getElementById("matchAvThem");
+    themAv.textContent = profile.initial;
+    themAv.style.background = profile.color2;
+    matchOverlay.classList.add("show");
+  }
+
+  document.getElementById("matchCloseBtn").addEventListener("click", () => {
+    matchOverlay.classList.remove("show");
+  });
+
+  function swipe(direction){
+    if (idx >= profiles.length) return;
+    const topCard = deckEl.querySelector(".profile-card");
+    if (!topCard) return;
+    const targetProfile = profiles[idx];
+    const stamp = topCard.querySelector(`.stamp.${direction}`);
+    if (stamp) stamp.style.opacity = "1";
+    topCard.style.transform = direction === "like"
+      ? "translateX(140%) rotate(18deg)"
+      : "translateX(-140%) rotate(-18deg)";
+    topCard.style.opacity = "0";
+    history.push(idx);
+    idx++;
+    setTimeout(render, 280);
+
+    if (direction === "like"){
+      saveLike(targetProfile);
+    }
+  }
+
+  document.getElementById("likeBtn").addEventListener("click", () => swipe("like"));
+  document.getElementById("passBtn").addEventListener("click", () => swipe("pass"));
+  document.getElementById("undoBtn").addEventListener("click", () => {
+    if (history.length === 0) return;
+    idx = history.pop();
+    render();
+  });
+
+  seedIncomingLikes();
+  render();
+</script>
+</body>
+</html>
