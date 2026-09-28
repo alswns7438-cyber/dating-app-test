@@ -65,10 +65,11 @@
   let client = null;
   try { client = window.supabase.createClient(SUPABASE_URL, SUPABASE_KEY); } catch(e){ console.error(e); }
 
-  let myId = localStorage.getItem("someTik_myId");
-  if (!myId){
-    myId = crypto.randomUUID();
-    localStorage.setItem("someTik_myId", myId);
+  let myId = null;
+  try {
+    myId = JSON.parse(localStorage.getItem("sb-tsrfquzogwcdjdsqqasl-auth-token")).user.id;
+  } catch(e){}
+  if (!myId) location.href = "login.html";
   }
 
   const profileById = {
