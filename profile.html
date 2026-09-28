@@ -1,0 +1,85 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>썸틱 · 내 프로필</title>
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+<style>
+  *{ box-sizing:border-box; }
+  body{ margin:0; min-height:100vh; background:#241528; color:#F3ECF6;
+    font-family:-apple-system,'Noto Sans KR',sans-serif;
+    display:flex; justify-content:center; padding:24px 16px; }
+  .box{ width:100%; max-width:380px; }
+  a.back{ color:#8B5CF6; font-size:13px; text-decoration:none; }
+  h1{ font-size:22px; margin:14px 0 4px; }
+  .sub{ color:#B0A3B5; font-size:13.5px; margin:0 0 20px; }
+  .card{ background:#FFF8F0; color:#2A1E2E; border-radius:20px; padding:20px; }
+  label{ display:block; font-size:12.5px; color:#8A7A8F; margin:12px 0 4px; }
+  input,textarea{ width:100%; padding:12px; border-radius:12px; border:1px solid #ccc;
+    font-size:15px; font-family:inherit; }
+  textarea{ height:90px; resize:none; }
+  button{ width:100%; margin-top:16px; padding:13px; border:none; border-radius:12px;
+    font-size:15px; font-weight:700; background:#8B5CF6; color:#fff; }
+  .msg{ margin-top:12px; font-size:13px; line-height:1.5; }
+</style>
+</head>
+<body>
+<div class="box">
+  <a class="back" href="swipe.html">← 스와이프로</a>
+  <h1>내 프로필</h1>
+  <div class="sub">다른 사람에게 보여질 정보예요</div>
+  <div class="card">
+    <label>이름 (닉네임)</label>
+    <input id="name" placeholder="예: 민수">
+    <label>나이</label>
+    <input id="age" type="number" placeholder="예: 32">
+    <label>한 줄 소개</label>
+    <textarea id="bio" placeholder="예: 주말엔 러닝하고 맛집 찾아다녀요"></textarea>
+    <button id="saveBtn">저장</button>
+    <div class="msg" id="msg"></div>
+  </div>
+</div>
+<script>
+  const client = window.supabase.createClient(
+    "https://tsrfquzogwcdjdsqqasl.supabase.co",
+    "sb_publishable_un0C00HYmC7vW4dSsFttcg_a5ILKQ4R"
+  );
+  let myId = null;
+  try {
+    myId = JSON.parse(localStorage.getItem("sb-tsrfquzogwcdjdsqqasl-auth-token")).user.id;
+  } catch(e){}
+  if (!myId) location.href = "login.html";
+
+  const msgEl = document.getElementById("msg");
+  function show(t, ok){ msgEl.textContent = t; msgEl.style.color = ok ? "#1FA463" : "#D64545"; }
+
+  async function load(){
+    const { data } = await client.from("profiles").select("*").eq("user_id", myId).limit(1);
+    if (data && data[0]){
+      document.getElementById("name").value = data[0].name || "";
+      document.getElementById("age").value = data[0].age || "";
+      document.getElementById("bio").value = data[0].bio || "";
+    }
+  }
+
+  async function save(){
+    const name = document.getElementById("name").value.trim();
+    const age = parseInt(document.getElementById("age").value);
+    const bio = document.getElementById("bio").value.trim();
+    if (!name || !age){ show("이름과 나이를 입력해주세요."); return; }
+    show("저장 중...", true);
+    const { data: ex } = await client.from("profiles").select("id").eq("user_id", myId).limit(1);
+    const row = { user_id: myId, name, age, bio };
+    const res = (ex && ex[0])
+      ? await client.from("profiles").update(row).eq("user_id", myId)
+      : await client.from("profiles").insert(row);
+    if (res.error){ show("저장 실패: " + res.error.message); return; }
+    show("저장됐어요!", true);
+  }
+
+  document.getElementById("saveBtn").onclick = save;
+  load();
+</script>
+</body>
+</html>
