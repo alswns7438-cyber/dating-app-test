@@ -191,10 +191,11 @@
   try { client = window.supabase.createClient(SUPABASE_URL, SUPABASE_KEY); } catch(e){ console.error(e); }
 
   // 이 기기의 "내 아이디" (로그인 기능 붙이기 전까지 임시로 로컬에 저장)
-  let myId = localStorage.getItem("someTik_myId");
-  if (!myId){
-    myId = crypto.randomUUID();
-    localStorage.setItem("someTik_myId", myId);
+  let myId = null;
+  try {
+    myId = JSON.parse(localStorage.getItem("sb-tsrfquzogwcdjdsqqasl-auth-token")).user.id;
+  } catch(e){}
+  if (!myId) location.href = "login.html";
   }
 
   const profiles = [
