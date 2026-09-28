@@ -178,7 +178,8 @@
       <div class="av" id="matchAvMe" style="background:#4C6FFF;">나</div>
       <div class="av" id="matchAvThem" style="background:#FF6B5B;">?</div>
     </div>
-    <button class="match-close" id="matchCloseBtn">계속 둘러보기</button>
+    <a class="match-close" id="matchChatBtn" href="#" style="text-decoration:none;display:inline-block;margin-right:8px;">메시지 보내기</a>
+    <button class="match-close" id="matchCloseBtn" style="background:#4a3a55;">계속 둘러보기</button>
   </div>
 </div>
 
@@ -300,6 +301,7 @@
     document.getElementById("matchName").textContent = profile.name + "님과 매칭됐어요!";
     const themAv = document.getElementById("matchAvThem");
     themAv.textContent = profile.initial;
+    document.getElementById("matchChatBtn").href = "chat.html?with=" + profile.id;
     themAv.style.background = profile.color2;
     matchOverlay.classList.add("show");
   }
